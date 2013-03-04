@@ -16,6 +16,10 @@
 
 package com.wotifgroup.zopfli;
 
+/**
+ * Zopfli-specific compression options.
+ * @author Sam Day
+ */
 public class Options {
     public static Options SMALL_FILE_DEFAULTS = new Options(15, true, false, 15);
     public static Options LARGE_FILE_DEFAULTS = new Options(5, true, false, 15);

@@ -27,6 +27,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * JNA wrapping for the stuff in Zopfli native that we actually want to invoke.
+ * @author Sam Day
+ */
 public interface ZopfliLibrary extends Library {
     void ZlibCompress(OptionsStruct options, byte[] in, NativeSize insize, PointerByReference out,
             NativeSizeByReference outsize);

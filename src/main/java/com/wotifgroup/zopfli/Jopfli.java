@@ -31,6 +31,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
+/**
+ * Provides static methods to create Zopfli compressed data with zlib/gzip headers, or raw DEFLATE output.
+ * @author Sam Day
+ */
 public class Jopfli {
     private static final ZopfliLibrary LIB;
 

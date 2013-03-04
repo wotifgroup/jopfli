@@ -38,5 +38,5 @@ Check out [Options](src/main/java/com/wotifgroup/zopfli/Options.java).
 
 # License
 
-This project has been licensed under ASL 2.0. See the [License](LICENSE) file
+This project has been licensed under ASL 2.0. See the [LICENSE](LICENSE) file
 for more information.
