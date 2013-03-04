@@ -35,3 +35,8 @@ Check out [Options](src/main/java/com/wotifgroup/zopfli/Options.java).
 # TODO
 
  * Windows/OSX/Linux32 bit native libraries need bundling.
+
+# License
+
+This project has been licensed under ASL 2.0. See the [License](LICENSE) file
+for more information.
