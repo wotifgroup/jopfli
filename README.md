@@ -34,7 +34,8 @@ Check out [Options](src/main/java/com/wotifgroup/zopfli/Options.java).
 
 # TODO
 
- * Windows/OSX/Linux32 bit native libraries need bundling.
+ * Bundle Windows/OSX native libraries.
+ * Investigate (Input|Output)Stream support.
 
 # License
 
