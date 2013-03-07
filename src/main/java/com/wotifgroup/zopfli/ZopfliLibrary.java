@@ -32,14 +32,14 @@ import java.util.List;
  * @author Sam Day
  */
 public interface ZopfliLibrary extends Library {
-    void ZlibCompress(OptionsStruct options, byte[] in, NativeSize insize, PointerByReference out,
-            NativeSizeByReference outsize);
+    void ZopfliZlibCompress(OptionsStruct options, byte[] in, NativeSize insize, PointerByReference out,
+                            NativeSizeByReference outsize);
 
-    void GzipCompress(OptionsStruct options, byte[] in, NativeSize insize, PointerByReference out,
-            NativeSizeByReference outsize);
+    void ZopfliGzipCompress(OptionsStruct options, byte[] in, NativeSize insize, PointerByReference out,
+                            NativeSizeByReference outsize);
 
-    void Deflate(OptionsStruct options, int btype, int _final, byte[] in, NativeSize insize, CharByReference bp,
-            PointerByReference out, NativeSizeByReference outsize);
+    void ZopfliDeflate(OptionsStruct options, int btype, int _final, byte[] in, NativeSize insize, CharByReference bp,
+                       PointerByReference out, NativeSizeByReference outsize);
 
     public static final class OptionsStruct extends Structure {
         private static final List<String> FIELD_ORDER = Collections.unmodifiableList(new ArrayList<String>() {{

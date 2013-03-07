@@ -94,7 +94,7 @@ public class Jopfli {
     public static final byte[] deflate(byte[] data, Options opts) {
         NativeSizeByReference outSize = new NativeSizeByReference();
         PointerByReference out =  new PointerByReference(new Pointer(0));
-        LIB.Deflate(ZopfliLibrary.OptionsStruct.of(opts), 2, 1, data, new NativeSize(data.length), BP, out, outSize);
+        LIB.ZopfliDeflate(ZopfliLibrary.OptionsStruct.of(opts), 2, 1, data, new NativeSize(data.length), BP, out, outSize);
         return out.getValue().getByteArray(0, outSize.getValue().intValue());
     }
 
@@ -107,7 +107,7 @@ public class Jopfli {
     public static final byte[] zlib(byte[] data, Options opts) {
         NativeSizeByReference outSize = new NativeSizeByReference();
         PointerByReference out =  new PointerByReference(new Pointer(0));
-        LIB.ZlibCompress(ZopfliLibrary.OptionsStruct.of(opts), data, new NativeSize(data.length), out, outSize);
+        LIB.ZopfliZlibCompress(ZopfliLibrary.OptionsStruct.of(opts), data, new NativeSize(data.length), out, outSize);
         return out.getValue().getByteArray(0, outSize.getValue().intValue());
     }
 
@@ -120,7 +120,7 @@ public class Jopfli {
     public static final byte[] gzip(byte[] data, Options opts) {
         NativeSizeByReference outSize = new NativeSizeByReference();
         PointerByReference out =  new PointerByReference(new Pointer(0));
-        LIB.GzipCompress(ZopfliLibrary.OptionsStruct.of(opts), data, new NativeSize(data.length), out, outSize);
+        LIB.ZopfliGzipCompress(ZopfliLibrary.OptionsStruct.of(opts), data, new NativeSize(data.length), out, outSize);
         return out.getValue().getByteArray(0, outSize.getValue().intValue());
     }
 }
