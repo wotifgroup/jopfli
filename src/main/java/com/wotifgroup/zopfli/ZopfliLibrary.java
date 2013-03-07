@@ -23,6 +23,7 @@ import com.sun.jna.Library;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
 
+import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +41,9 @@ public interface ZopfliLibrary extends Library {
 
     void ZopfliDeflate(OptionsStruct options, int btype, int _final, byte[] in, NativeSize insize, CharByReference bp,
                        PointerByReference out, NativeSizeByReference outsize);
+
+    void ZopfliDeflatePart(OptionsStruct options, int btype, int _final, Buffer in, NativeSize instart, NativeSize inend,
+                           CharByReference bp, PointerByReference out, NativeSizeByReference outsize);
 
     public static final class OptionsStruct extends Structure {
         private static final List<String> FIELD_ORDER = Collections.unmodifiableList(new ArrayList<String>() {{

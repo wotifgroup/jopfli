@@ -36,7 +36,7 @@ import java.net.URL;
  * @author Sam Day
  */
 public class Jopfli {
-    private static final ZopfliLibrary LIB;
+    static final ZopfliLibrary LIB;
 
     /**
      * TODO: This all feels very hacky. Should be using something like OneJAR or some kind of library that abstracts
