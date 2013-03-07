@@ -119,14 +119,22 @@ public class JopfliDeflater extends Deflater {
         return this.finished && this.currentOutOffset.intValue() == this.outSize.getValue().intValue();
     }
 
+    /**
+     * Flushes data out to actual Zopfli implementation. Should only flush out to Zopfli when buffered data exceeds
+     * maximum master block size, or finish() has been called.
+     */
     private void runDeflate() {
-        if(this.buf.readableBytes() < this.masterBlockSize && !this.finished) {
+        int readableBytes = this.buf.readableBytes();
+
+        if(readableBytes == 0) return;
+        if(readableBytes < this.masterBlockSize && !this.finished) {
             return;
         }
 
-        Buffer in = this.buf.readBytes(Math.min(this.masterBlockSize, this.buf.readableBytes())).nioBuffer();
+        Buffer in = this.buf.readBytes(Math.min(this.masterBlockSize, readableBytes)).nioBuffer();
+        boolean allDone = this.finished && !this.buf.isReadable();
         NativeSize inSize = new NativeSize(in.remaining());
-        this.zopfliLibrary.ZopfliDeflatePart(this.optionsStruct, 2, this.finished ? 1 : 0, in, new NativeSize(0),
+        this.zopfliLibrary.ZopfliDeflatePart(this.optionsStruct, 2, allDone ? 1 : 0, in, new NativeSize(0),
             inSize, this.bp, this.out, this.outSize);
     }
 }
