@@ -57,13 +57,48 @@ public class JopfliDeflaterTests {
         assertThat(deflater.needsInput()).isFalse();
         assertThat(deflater.finished()).isTrue();
 
-        assertThat(new String(inflate(out), Charsets.UTF_8)).isEqualTo("Hello, World!");
+        assertThat(new String(inflate(out, false), Charsets.UTF_8)).isEqualTo("Hello, World!");
     }
 
-    private static final byte[] inflate(byte[] data) {
+    @Test
+    public void testTrickledOutputDeflate() {
+        JopfliDeflater deflater = new JopfliDeflater();
+        deflater.setInput("Hello, World!".getBytes(Charsets.UTF_8));
+        deflater.finish();
+        byte[] out = new byte[1024];
+        int offset = 0;
+        while(!deflater.finished()) {
+            deflater.deflate(out, offset++, 1);
+        }
+        assertThat(new String(inflate(out, false), Charsets.UTF_8)).isEqualTo("Hello, World!");
+    }
+
+    @Test
+    public void testRawDeflate() {
+        JopfliDeflater deflater = new JopfliDeflater(true);
+        deflater.setInput("Hello, World!".getBytes(Charsets.UTF_8));
+        deflater.finish();
+        byte[] out = new byte[1024];
+        deflater.deflate(out);
+        assertThat(new String(inflate(out, true), Charsets.UTF_8)).isEqualTo("Hello, World!");
+    }
+
+    // TODO: figure out why this doesn't work.
+    /*
+    @Test
+    public void testSmallBlockSize() {
+        JopfliDeflater deflater = new JopfliDeflater(12);
+        deflater.setInput("Hello, World!".getBytes(Charsets.UTF_8));
+        deflater.finish();
+        byte[] out = new byte[1024];
+        deflater.deflate(out);
+        assertThat(new String(inflate(out, false), Charsets.UTF_8)).isEqualTo("Hello, World!");
+    }*/
+
+    private static final byte[] inflate(byte[] data, boolean raw) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            InflaterOutputStream inflaterOut = new InflaterOutputStream(baos);
+            InflaterOutputStream inflaterOut = new InflaterOutputStream(baos, new Inflater(raw));
             inflaterOut.write(data);
             inflaterOut.close();
             return baos.toByteArray();

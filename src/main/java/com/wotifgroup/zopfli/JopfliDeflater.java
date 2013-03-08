@@ -43,15 +43,28 @@ public class JopfliDeflater extends Deflater {
     private NativeSize currentOutOffset;
     private CharByReference bp;
     private ZopfliLibrary.OptionsStruct optionsStruct;
-    private boolean finished;
-    private boolean headerOutput;
     private Adler32 adler32;
+    private boolean zlibWrapping;       // True if we're outputting ZLIB header + footer. false for just raw DEFLATE.
+    private State state;
+    private boolean eof;
+
+    private byte headerState;       // 1 == CMF. 2 == FLG
+    private byte trailerState;      // 1 - 4
 
     public JopfliDeflater() {
-        this(MASTER_BLOCK_SIZE);
+        this(false);
+    }
+
+    public JopfliDeflater(boolean nowrap) {
+        this(MASTER_BLOCK_SIZE, nowrap);
     }
 
     public JopfliDeflater(int masterBlockSize) {
+        this(masterBlockSize, false);
+    }
+
+    public JopfliDeflater(int masterBlockSize, boolean nowrap) {
+        this.zlibWrapping = !nowrap;
         this.masterBlockSize = masterBlockSize;
         this.zopfliLibrary = Jopfli.LIB;
         this.optionsStruct = ZopfliLibrary.OptionsStruct.of(Options.SMALL_FILE_DEFAULTS);   // TODO: configurable.
@@ -66,7 +79,10 @@ public class JopfliDeflater extends Deflater {
         this.outSize =  new NativeSizeByReference();
         this.currentOutOffset = new NativeSize(0);
         this.buf = Unpooled.compositeBuffer();
-        this.headerOutput = false;
+        this.state = this.zlibWrapping ? State.HEADER : State.DEFLATING;
+        this.eof = false;
+        this.headerState = 1;
+        this.trailerState = 1;
         this.adler32.reset();
     }
 
@@ -110,69 +126,112 @@ public class JopfliDeflater extends Deflater {
 
     @Override
     public boolean needsInput() {
-        return this.buf.readableBytes() < this.masterBlockSize && !this.finished;
+        return (this.state == State.DEFLATING || this.state == State.HEADER)
+            && !this.eof && this.buf.readableBytes() < this.masterBlockSize;
     }
 
     @Override
     public int deflate(byte[] b, int off, int len) {
-        this.runDeflate();
+        this.doDeflate(b, off, len);
 
-        if(!this.headerOutput) {
-            b[off++] = (byte)120;
-            b[off++] = (byte)1;
-            len -= 2;
-            this.headerOutput = true;
+        return -1;
+    }
+
+    private int doDeflate(byte[] b, int off, int len) {
+        int available = len;
+
+        loop: while(available > 0 && this.state != State.FINISHED) {
+            switch(this.state) {
+                case HEADER: {
+                    while(this.headerState <= 3 && available > 0) {
+                        switch(this.headerState++) {
+                            case 1:
+                                b[off++] = (byte)120;
+                                available--;
+                                break;
+                            case 2:
+                                b[off++] = (byte)1;
+                                available--;
+                                break;
+                            case 3:
+                                this.state = State.DEFLATING;
+                                break;
+                        }
+                    }
+                    break;
+                }
+                case DEFLATING: {
+                    this.runZopfliDeflate();
+
+                    int outputAvailable = this.outSize.getValue().intValue() - this.currentOutOffset.intValue();
+                    if(outputAvailable == 0) break loop;
+
+                    int toRead = Math.min(outputAvailable, available);
+                    this.out.getValue().read(this.currentOutOffset.intValue(), b, off, toRead);
+                    this.currentOutOffset.setValue(this.currentOutOffset.longValue() + toRead);
+
+                    off += toRead;
+                    available -= toRead;
+
+                    if(this.eof && !this.buf.isReadable() && this.currentOutOffset.intValue() == this.outSize.getValue().intValue()) {
+                        this.state = this.zlibWrapping ? State.TRAILER : State.FINISHED;
+                    }
+
+                    break;
+                }
+                case TRAILER: {
+                    long adler32Value = this.adler32.getValue();
+
+                    while(this.trailerState <= 4 && available > 0) {
+                        b[off++] = (byte)((adler32Value >> ((4 - this.trailerState++) * 8)) & 0xFF);
+                        available--;
+                    }
+
+                    if(this.trailerState == 5) {
+                        this.state = State.FINISHED;
+                    }
+
+                    break;
+                }
+            }
         }
 
-        int available = this.outSize.getValue().intValue() - this.currentOutOffset.intValue();
-        if(available == 0) return 0;
-
-        int read = Math.min(available, len);
-        this.out.getValue().read(this.currentOutOffset.intValue(), b, off, read);
-        this.currentOutOffset.setValue(this.currentOutOffset.longValue() + read);
-
-        if((this.outSize.getValue().intValue() == this.currentOutOffset.intValue()) && this.finished) {
-            // TODO: if we don't have more than 4 bytes remaining in output buffer we have to return 0 and do it on
-            // next call.
-            long adler32Value = this.adler32.getValue();
-            off += read;
-            b[off++] = (byte)((adler32Value >> 24) & 0xFF);
-            b[off++] = (byte)((adler32Value >> 16) & 0xFF);
-            b[off++] = (byte)((adler32Value >> 8) & 0xFF);
-            b[off++] = (byte)(adler32Value & 0xFF);
-
-            read += 4;
-        }
-
-        return read;
+        return len - available;
     }
 
     @Override
     public void finish() {
-        this.finished = true;
+        if(this.state != State.DEFLATING && this.state != State.HEADER) {
+            throw new IllegalStateException("Finish called at inappropriate time.");
+        }
+        this.eof = true;
     }
 
     @Override
     public boolean finished() {
-        return this.finished && !this.buf.isReadable();
+        return this.state == State.FINISHED;
     }
 
     /**
      * Flushes data out to actual Zopfli implementation. Should only flush out to Zopfli when buffered data exceeds
      * maximum master block size, or finish() has been called.
      */
-    private void runDeflate() {
+    private void runZopfliDeflate() {
         int readableBytes = this.buf.readableBytes();
 
         if(readableBytes == 0) return;
-        if(readableBytes < this.masterBlockSize && !this.finished) {
-            return;
-        }
 
         Buffer in = this.buf.readBytes(Math.min(this.masterBlockSize, readableBytes)).nioBuffer();
-        boolean allDone = this.finished && !this.buf.isReadable();
+        boolean allDone = this.eof && !this.buf.isReadable();
         NativeSize inSize = new NativeSize(in.remaining());
         this.zopfliLibrary.ZopfliDeflatePart(this.optionsStruct, 2, allDone ? 1 : 0, in, new NativeSize(0),
             inSize, this.bp, this.out, this.outSize);
+    }
+
+    private enum State {
+        HEADER,             // Outputting zlib header.
+        DEFLATING,          // Receiving and deflating data.
+        TRAILER,            // Outputting zlib trailer.
+        FINISHED            // ... and that's the way the cookie crumbles.
     }
 }
