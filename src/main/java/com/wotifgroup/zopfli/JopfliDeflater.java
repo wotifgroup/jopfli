@@ -25,6 +25,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 
 import java.nio.Buffer;
+import java.util.zip.Adler32;
 import java.util.zip.Deflater;
 
 /**
@@ -43,6 +44,8 @@ public class JopfliDeflater extends Deflater {
     private CharByReference bp;
     private ZopfliLibrary.OptionsStruct optionsStruct;
     private boolean finished;
+    private boolean headerOutput;
+    private Adler32 adler32;
 
     public JopfliDeflater() {
         this(MASTER_BLOCK_SIZE);
@@ -52,6 +55,7 @@ public class JopfliDeflater extends Deflater {
         this.masterBlockSize = masterBlockSize;
         this.zopfliLibrary = Jopfli.LIB;
         this.optionsStruct = ZopfliLibrary.OptionsStruct.of(Options.SMALL_FILE_DEFAULTS);   // TODO: configurable.
+        this.adler32 = new Adler32();
         this.reset();
     }
 
@@ -62,6 +66,8 @@ public class JopfliDeflater extends Deflater {
         this.outSize =  new NativeSizeByReference();
         this.currentOutOffset = new NativeSize(0);
         this.buf = Unpooled.compositeBuffer();
+        this.headerOutput = false;
+        this.adler32.reset();
     }
 
     @Override
@@ -93,11 +99,30 @@ public class JopfliDeflater extends Deflater {
     public void setInput(byte[] b, int off, int len) {
         this.buf.addComponent(Unpooled.wrappedBuffer(b, off, len));
         this.buf.writerIndex(this.buf.capacity());
+
+        this.adler32.update(b, off, len);
+    }
+
+    @Override
+    public void end() {
+        // TODO: anything we should be doing here?
+    }
+
+    @Override
+    public boolean needsInput() {
+        return this.buf.readableBytes() < this.masterBlockSize && !this.finished;
     }
 
     @Override
     public int deflate(byte[] b, int off, int len) {
         this.runDeflate();
+
+        if(!this.headerOutput) {
+            b[off++] = (byte)120;
+            b[off++] = (byte)1;
+            len -= 2;
+            this.headerOutput = true;
+        }
 
         int available = this.outSize.getValue().intValue() - this.currentOutOffset.intValue();
         if(available == 0) return 0;
@@ -105,18 +130,31 @@ public class JopfliDeflater extends Deflater {
         int read = Math.min(available, len);
         this.out.getValue().read(this.currentOutOffset.intValue(), b, off, read);
         this.currentOutOffset.setValue(this.currentOutOffset.longValue() + read);
+
+        if((this.outSize.getValue().intValue() == this.currentOutOffset.intValue()) && this.finished) {
+            // TODO: if we don't have more than 4 bytes remaining in output buffer we have to return 0 and do it on
+            // next call.
+            long adler32Value = this.adler32.getValue();
+            off += read;
+            b[off++] = (byte)((adler32Value >> 24) & 0xFF);
+            b[off++] = (byte)((adler32Value >> 16) & 0xFF);
+            b[off++] = (byte)((adler32Value >> 8) & 0xFF);
+            b[off++] = (byte)(adler32Value & 0xFF);
+
+            read += 4;
+        }
+
         return read;
     }
 
     @Override
     public void finish() {
         this.finished = true;
-        this.runDeflate();
     }
 
     @Override
     public boolean finished() {
-        return this.finished && this.currentOutOffset.intValue() == this.outSize.getValue().intValue();
+        return this.finished && !this.buf.isReadable();
     }
 
     /**

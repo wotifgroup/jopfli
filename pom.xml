@@ -32,6 +32,20 @@
             <artifactId>netty-buffer</artifactId>
             <version>4.0.0.Beta2</version>
         </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.easytesting</groupId>
+            <artifactId>fest-assert-core</artifactId>
+            <version>2.0M10</version>
+        </dependency>
+        
     </dependencies>
 
     <build>
